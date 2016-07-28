@@ -382,7 +382,8 @@ func (cmd *GuardianCommand) wireNetworker(log lager.Logger, propManager kawasaki
 
 	idGenerator := kawasaki.NewSequentialIDGenerator(time.Now().UnixNano())
 
-	kawasakiNetworker := kawasaki.New(
+	// kawasakiNetworker := kawasaki.New(
+	_ = kawasaki.New(
 		cmd.Bin.IPTables.Path(),
 		kawasaki.SpecParserFunc(kawasaki.ParseSpec),
 		subnets.NewPool(cmd.Network.Pool.CIDR()),
@@ -394,11 +395,15 @@ func (cmd *GuardianCommand) wireNetworker(log lager.Logger, propManager kawasaki
 		iptables.NewFirewallOpener(ipTables),
 	)
 
-	networkers := []kawasaki.Networker{kawasakiNetworker}
+	// networkers := []kawasaki.Networker{kawasakiNetworker}
+	networkers := []kawasaki.Networker{}
 	if cmd.Network.Plugin.Path() != "" {
 		networkers = append(networkers, netplugin.New(
 			linux_command_runner.New(),
 			propManager,
+			portPool,
+			externalIP,
+			dnsServers,
 			cmd.Network.Plugin.Path(),
 			cmd.Network.PluginExtraArgs...,
 		))
