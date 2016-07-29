@@ -181,7 +181,7 @@ func (p *ExternalBinaryNetworker) Network(log lager.Logger, containerSpec garden
 		panic(err)
 	}
 
-	setDefault(log)
+	setDefault(log, containerIP)
 
 	return nil
 }
@@ -356,12 +356,22 @@ func (p *ExternalBinaryNetworker) NetOut(log lager.Logger, handle string, rule g
 		}
 	}
 
-	setDefault(log)
+	setDefault(log, containerIP)
 
 	return nil
 }
 
-func setDefault(log lager.Logger) {
+func parseSubnet(ip string) string {
+	octets := strings.Split(ip, ".")
+	if len(octets) != 4 {
+		panic("invalid ip string")
+	}
+	return strings.Join(octets[:3], ".") + ".0/24"
+}
+
+func setDefault(log lager.Logger, containerIP string) {
+	subnet := parseSubnet(containerIP)
+
 	listCmd := exec.Command("/sbin/iptables", "-w", "-S")
 	output, err := listCmd.CombinedOutput()
 	if err != nil {
@@ -370,14 +380,15 @@ func setDefault(log lager.Logger) {
 	}
 	ruleList := strings.Split(string(output), "\n")
 	for _, r := range ruleList {
-		if strings.Contains(r, "-A FORWARD -j DROP") {
+		if strings.Contains(r, fmt.Sprintf("-A FORWARD ! -d %s -j REJECT", subnet)) {
 			log.Info("external-binary-netout-rule-delete-old-default", lager.Data{
-				"rule": fmt.Sprintf("-w -D FORWARD -j DROP"),
+				"rule": fmt.Sprintf("-w -D FORWARD ! -d %s -j REJECT", subnet),
 			})
 			cmd := exec.Command("/sbin/iptables",
 				"-w",
 				"-D", "FORWARD",
-				"-j", "DROP",
+				"!", "-d", subnet,
+				"-j", "REJECT",
 			)
 			err := cmd.Run()
 			if err != nil {
@@ -388,12 +399,13 @@ func setDefault(log lager.Logger) {
 	}
 
 	log.Info("external-binary-netout-rule-readd-default", lager.Data{
-		"rule": fmt.Sprintf("-w -A FORWARD -j DROP"),
+		"rule": fmt.Sprintf("-w -A FORWARD ! -d %s -j REJECT", subnet),
 	})
 	cmd := exec.Command("/sbin/iptables",
 		"-w",
 		"-A", "FORWARD",
-		"-j", "DROP",
+		"!", "-d", subnet,
+		"-j", "REJECT",
 	)
 	err = cmd.Run()
 	if err != nil {
