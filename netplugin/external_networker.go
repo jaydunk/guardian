@@ -16,6 +16,8 @@ import (
 )
 
 const NetworkPropertyPrefix = "network."
+const ExternalNetworkPropertyPrefix = "external-networker."
+const NetOutKey = NetworkPropertyPrefix + ExternalNetworkPropertyPrefix + "net-out"
 
 type ExternalBinaryNetworker struct {
 	commandRunner command_runner.CommandRunner
@@ -132,5 +134,21 @@ func (p *ExternalBinaryNetworker) NetIn(log lager.Logger, handle string, externa
 }
 
 func (p *ExternalBinaryNetworker) NetOut(log lager.Logger, handle string, rule garden.NetOutRule) error {
+	rules := []garden.NetOutRule{}
+	value, ok := p.configStore.Get(handle, NetOutKey)
+	if ok {
+		err := json.Unmarshal([]byte(value), &rules)
+		if err != nil {
+			return fmt.Errorf("store net-out invalid JSON: %s", err)
+		}
+	}
+
+	rules = append(rules, rule)
+	ruleJSON, err := json.Marshal(rules)
+	if err != nil {
+		return err
+	}
+
+	p.configStore.Set(handle, NetOutKey, string(ruleJSON))
 	return nil
 }
