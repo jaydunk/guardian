@@ -7,7 +7,6 @@ import (
 	"io"
 	"math"
 	"net"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -15,10 +14,8 @@ import (
 	"code.cloudfoundry.org/guardian/gardener"
 	"code.cloudfoundry.org/guardian/kawasaki"
 	"code.cloudfoundry.org/guardian/kawasaki/dns"
-	"code.cloudfoundry.org/guardian/kawasaki/netns"
 	"code.cloudfoundry.org/lager"
 	"github.com/cloudfoundry/gunk/command_runner"
-	"github.com/vishvananda/netlink"
 )
 
 const NetworkPropertyPrefix = "network."
@@ -126,42 +123,6 @@ func (p *ExternalBinaryNetworker) Network(log lager.Logger, containerSpec garden
 
 	p.configStore.Set(containerSpec.Handle, gardener.ContainerIPKey, containerIP)
 	p.configStore.Set(containerSpec.Handle, gardener.BridgeIPKey, containerIP)
-
-	splitIP := strings.Split(containerIP, ".")
-	splitIP[3] = "1"
-	bridgeIP := strings.Join(splitIP, ".")
-
-	netnsFile, err := os.Open(fmt.Sprintf("/proc/%d/ns/net", pid))
-	if err != nil {
-		panic(err)
-	}
-	defer netnsFile.Close()
-
-	netNsPath := netnsFile.Name()
-	fd, err := os.Open(netNsPath)
-	if err != nil {
-		panic(err)
-	}
-
-	netNsExecer := &netns.Execer{}
-	if err = netNsExecer.Exec(fd, func() error {
-		link, err := netlink.LinkByName("eth0")
-		if err != nil {
-			panic(err)
-		}
-		route := &netlink.Route{
-			Scope:     netlink.SCOPE_UNIVERSE,
-			LinkIndex: link.Attrs().Index,
-			Gw:        net.ParseIP(bridgeIP),
-		}
-		err = netlink.RouteAdd(route)
-		if err != nil {
-			panic(err)
-		}
-		return nil
-	}); err != nil {
-		panic(err)
-	}
 
 	cfg := kawasaki.NetworkConfig{
 		ContainerIP:     net.ParseIP(containerIP),
