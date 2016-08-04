@@ -3,11 +3,9 @@ package netplugin_test
 import (
 	"errors"
 	"io/ioutil"
-	"net"
 	"os/exec"
 
 	"code.cloudfoundry.org/garden"
-	"code.cloudfoundry.org/guardian/gardener"
 	"code.cloudfoundry.org/guardian/kawasaki"
 	"code.cloudfoundry.org/guardian/netplugin"
 	"code.cloudfoundry.org/guardian/properties"
@@ -192,49 +190,7 @@ var _ = Describe("ExternalBinaryNetworker", func() {
 				})
 
 				plugin := netplugin.New(fakeCommandRunner, configStore, "some/path")
-				Expect(plugin.Destroy(nil, "my-handle")).To(MatchError("boom"))
-			})
-		})
-	})
-
-	Describe("NetIn", func() {
-		BeforeEach(func() {
-			configStore.Set("my-handle", gardener.ExternalIPKey, "1.2.3.4")
-		})
-
-		It("executes the external plugin with the correct args", func() {
-			plugin := netplugin.New(fakeCommandRunner, configStore, nil, net.ParseIP("1.2.3.4"), []net.IP{}, "some/path")
-			externalPort, containerPort, err := plugin.NetIn(lagertest.NewTestLogger("test"), "my-handle", 1234, 8080)
-			Expect(externalPort).To(Equal(uint32(1234)))
-			Expect(containerPort).To(Equal(uint32(8080)))
-			Expect(err).NotTo(HaveOccurred())
-
-			cmd := fakeCommandRunner.ExecutedCommands()[0]
-			Expect(cmd.Path).To(Equal("some/path"))
-
-			Expect(cmd.Args).To(ConsistOf([]string{
-				"some/path",
-				"--action", "netin",
-				"--handle", "my-handle",
-				"--host-port", "1234",
-				"--host-ip", "1.2.3.4",
-				"--container-port", "8080",
-			}))
-		})
-
-		Context("when the external plugin errors", func() {
-			It("returns the error", func() {
-				fakeCommandRunner.WhenRunning(fake_command_runner.CommandSpec{
-					Path: "some/path",
-				}, func(cmd *exec.Cmd) error {
-					return errors.New("boom")
-				})
-
-				plugin := netplugin.New(fakeCommandRunner, configStore, nil, net.ParseIP("1.2.3.4"), []net.IP{}, "some/path")
-				externalPort, containerPort, err := plugin.NetIn(nil, "my-handle", 1234, 8080)
-				Expect(externalPort).To(Equal(1234))
-				Expect(containerPort).To(Equal(8080))
-				Expect(err).NotTo(HaveOccurred())
+				Expect(plugin.Network(nil, containerSpec, 42)).To(MatchError("boom"))
 			})
 		})
 	})
