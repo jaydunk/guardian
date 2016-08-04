@@ -220,7 +220,36 @@ func (p *ExternalBinaryNetworker) NetIn(log lager.Logger, handle string, externa
 		}
 	}
 
-	if err := addPortMapping(log, p.configStore, handle, garden.PortMapping{
+	pathAndExtraArgs := append([]string{p.path}, p.extraArg...)
+
+	hostIP, ok := p.configStore.Get(handle, gardener.ExternalIPKey)
+	if !ok {
+		panic("host ip key not set")
+	}
+
+	networkPluginFlags := []string{
+		"--handle", handle,
+		"--host-ip", hostIP,
+		"--host-port", fmt.Sprintf("%d", externalPort),
+		"--container-port", fmt.Sprintf("%d", containerPort),
+	}
+
+	netInArgs := append(pathAndExtraArgs, "--action", "netin")
+	netInArgs = append(netInArgs, networkPluginFlags...)
+	fmt.Printf("ALL THE ARGS =======> %+v\n", netInArgs)
+
+	cmd := exec.Command(p.path)
+	cmd.Args = netInArgs
+	cmdOutput := &bytes.Buffer{}
+	cmd.Stdout = cmdOutput
+
+	err = p.commandRunner.Run(cmd)
+	if err != nil {
+		log.Error("external-binary-run-iptables-netin", err)
+		return 0, 0, err
+	}
+
+	if err = addPortMapping(log, p.configStore, handle, garden.PortMapping{
 		HostPort:      externalPort,
 		ContainerPort: containerPort,
 	}); err != nil {
