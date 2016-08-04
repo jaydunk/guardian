@@ -259,34 +259,6 @@ func (p *ExternalBinaryNetworker) NetIn(log lager.Logger, handle string, externa
 		}
 	}
 
-	containerIP, ok := p.configStore.Get(handle, "network.external-networker.container-ip")
-	if !ok {
-		panic("container ip key not set")
-	}
-	hostIP, ok := p.configStore.Get(handle, gardener.ExternalIPKey)
-	if !ok {
-		panic("host ip key not set")
-	}
-	log.Info("external-binary-netin-rule", lager.Data{
-		"rule": fmt.Sprintf("-w -t nat -A PREROUTING -d %s -p tcp -m tcp --dport %d -j DNAT --to-destination %s:%d", hostIP, externalPort, containerIP, containerPort),
-	})
-	cmd := exec.Command("/sbin/iptables",
-		"-w",
-		"-t", "nat",
-		"-A", "PREROUTING",
-		"-d", hostIP,
-		"-p", "tcp",
-		"-m", "tcp", "--dport", fmt.Sprintf("%d", externalPort),
-		"-j", "DNAT",
-		"--to-destination", fmt.Sprintf("%s:%d", containerIP, containerPort),
-		"-m", "comment", "--comment", handle,
-	)
-	err = cmd.Run()
-	if err != nil {
-		log.Error("external-binary-run-iptables-netin", err)
-		panic(err)
-	}
-
 	if err := addPortMapping(log, p.configStore, handle, garden.PortMapping{
 		HostPort:      externalPort,
 		ContainerPort: containerPort,
