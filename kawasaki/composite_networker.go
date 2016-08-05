@@ -34,27 +34,20 @@ func (c *CompositeNetworker) NetIn(log lager.Logger, handle string, externalPort
 	for i, nw := range c.Networkers {
 		hPort, cPort, err := nw.NetIn(log, handle, externalPort, containerPort)
 		if err != nil {
-			log.Error("net-in-error", err)
-			panic(err)
+			return 0, 0, err
 		}
 		if i == 0 {
 			returnedHostPort = hPort
 			returnedContainerPort = cPort
 		}
 	}
-	log.Info("composite-networker-net-in", lager.Data{
-		"host_port":      returnedHostPort,
-		"container_port": returnedContainerPort,
-	})
 	return returnedHostPort, returnedContainerPort, nil
 }
 
 func (c *CompositeNetworker) NetOut(log lager.Logger, handle string, rule garden.NetOutRule) error {
-	for _, nw := range c.Networkers {
-		err := nw.NetOut(log, handle, rule)
-		if err != nil {
-			log.Error("net-out-error", err)
-			panic(err)
+	for _, networker := range c.Networkers {
+		if err := networker.NetOut(log, handle, rule); err != nil {
+			return err
 		}
 	}
 	return nil

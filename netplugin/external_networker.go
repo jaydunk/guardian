@@ -19,6 +19,8 @@ import (
 )
 
 const NetworkPropertyPrefix = "network."
+const ExternalNetworkPropertyPrefix = "external-networker."
+const NetOutKey = NetworkPropertyPrefix + ExternalNetworkPropertyPrefix + "net-out"
 
 type ExternalBinaryNetworker struct {
 	commandRunner command_runner.CommandRunner
@@ -293,6 +295,8 @@ func addPortMapping(logger lager.Logger, configStore kawasaki.ConfigStore, handl
 }
 
 func (p *ExternalBinaryNetworker) NetOut(log lager.Logger, handle string, rule garden.NetOutRule) error {
+	// OLD AND BUSTED
+	// DO IT INLINE
 	containerIP, ok := p.configStore.Get(handle, "network.external-networker.container-ip")
 	if !ok {
 		panic("key not set")
@@ -318,6 +322,25 @@ func (p *ExternalBinaryNetworker) NetOut(log lager.Logger, handle string, rule g
 	}
 
 	setDefault(log, containerIP)
+
+	// NEW HOTNESS
+	// STORE IN PROPERTIES FOR READING BY NATMAN
+	rules := []garden.NetOutRule{}
+	value, ok := p.configStore.Get(handle, NetOutKey)
+	if ok {
+		err := json.Unmarshal([]byte(value), &rules)
+		if err != nil {
+			return fmt.Errorf("store net-out invalid JSON: %s", err)
+		}
+	}
+
+	rules = append(rules, rule)
+	ruleJSON, err := json.Marshal(rules)
+	if err != nil {
+		return err
+	}
+
+	p.configStore.Set(handle, NetOutKey, string(ruleJSON))
 
 	return nil
 }

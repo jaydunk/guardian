@@ -53,7 +53,7 @@ var _ = Describe("CompositeNetworker", func() {
 	})
 
 	Describe("NetIn", func() {
-		It("delegates to the first networker", func() {
+		It("is called on all networkers", func() {
 			fakeNetworkers[0].NetInReturns(1, 2, nil)
 
 			hostPort, containerPort, err := compositeNetworker.NetIn(nil, "some-handle", 1, 2)
@@ -62,8 +62,8 @@ var _ = Describe("CompositeNetworker", func() {
 			Expect(containerPort).To(BeEquivalentTo(2))
 
 			Expect(fakeNetworkers[0].NetInCallCount()).To(Equal(1))
-			Expect(fakeNetworkers[1].NetInCallCount()).To(Equal(0))
-			Expect(fakeNetworkers[2].NetInCallCount()).To(Equal(0))
+			Expect(fakeNetworkers[1].NetInCallCount()).To(Equal(1))
+			Expect(fakeNetworkers[2].NetInCallCount()).To(Equal(1))
 
 			_, handle, p1, p2 := fakeNetworkers[0].NetInArgsForCall(0)
 			Expect(handle).To(Equal("some-handle"))
@@ -73,17 +73,29 @@ var _ = Describe("CompositeNetworker", func() {
 	})
 
 	Describe("NetOut", func() {
-		It("delegates to the first networker", func() {
+		It("is called on all networkers", func() {
 			err := compositeNetworker.NetOut(nil, "some-handle", garden.NetOutRule{})
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(fakeNetworkers[0].NetOutCallCount()).To(Equal(1))
-			Expect(fakeNetworkers[1].NetOutCallCount()).To(Equal(0))
-			Expect(fakeNetworkers[2].NetOutCallCount()).To(Equal(0))
+			Expect(fakeNetworkers[1].NetOutCallCount()).To(Equal(1))
+			Expect(fakeNetworkers[2].NetOutCallCount()).To(Equal(1))
 
 			_, handle, rule := fakeNetworkers[0].NetOutArgsForCall(0)
 			Expect(handle).To(Equal("some-handle"))
 			Expect(rule).To(Equal(garden.NetOutRule{}))
+
+			_, handle, rule = fakeNetworkers[1].NetOutArgsForCall(0)
+			Expect(handle).To(Equal("some-handle"))
+			Expect(rule).To(Equal(garden.NetOutRule{}))
+		})
+		Context("when a networker fails", func() {
+			It("returns the error", func() {
+				fakeNetworkers[1].NetOutReturns(errors.New("haha"))
+				Expect(fakeNetworkers[2].NetOutCallCount()).To(Equal(0))
+
+				Expect(compositeNetworker.NetOut(nil, "some-handle", garden.NetOutRule{})).To(MatchError("haha"))
+			})
 		})
 	})
 
